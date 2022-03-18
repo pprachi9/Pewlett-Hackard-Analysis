@@ -1,65 +1,150 @@
--- Creating tables for PH-EmployeeDB
-CREATE TABLE departments (
-     dept_no VARCHAR(4) NOT NULL,
-     dept_name VARCHAR(40) NOT NULL,
-     PRIMARY KEY (dept_no),
-     UNIQUE (dept_name)
-);
+-- Determine retirement eligibility
+select first_name, last_name
+from employees
+where birth_date between '1952-01-01' and '1955-12-31';
 
-CREATE TABLE employees(
-	emp_no INT NOT NULL,
-	birth_date DATE NOT NULL,
-	first_name VARCHAR NOT NULL,
-	last_name VARCHAR NOT NULL,
-	gender VARCHAR NOT NULL,
-	hire_date DATE NOT NULL, 
-	PRIMARY KEY (emp_no)
-);
+-- Determine employees born in 1952
+select first_name, last_name
+from employees
+where birth_date between '1952-01-01' and '1952-12-31';
 
-CREATE TABLE dept_manager(
-dept_no VARCHAR (4) NOT NULL,
-	emp_no INT NOT NULL,
-	from_date DATE NOT NULL,
-	to_date DATE NOT NULL,
-FOREIGN KEY (emp_no) REFERENCES employees (emp_no),
-FOREIGN KEY (dept_no) REFERENCES departments (dept_no),
-	PRIMARY KEY (emp_no, dept_no)
-);
+-- Determine employees born in 1953
+select first_name, last_name
+from employees
+where birth_date between '1953-01-01' and '1953-12-31';
 
-CREATE TABLE salaries(
-	emp_no INT NOT NULL,
-	salary INT NOT NULL,
-	from_date DATE NOT NULL,
-	to_date DATE NOT NULL, 
-	FOREIGN KEY (emp_no) REFERENCES employees (emp_no),
-	PRIMARY KEY (emp_no)
-);
+-- Determine employees born in 1954
+select first_name, last_name
+from employees
+where birth_date between '1954-01-01' and '1954-12-31';
 
-CREATE TABLE titles(
-	emp_no INT NOT NULL,
-	title VARCHAR NOT NULL,
-	from_date DATE NOT NULL,
-	to_date DATE NOT NULL,
-	FOREIGN KEY (emp_no) REFERENCES employees (emp_no),
-	PRIMARY KEY (emp_no, from_date)
-);
+-- Determine employees born in 1955
+select first_name, last_name
+from employees
+where birth_date between '1955-01-01' and '1955-12-31';
 
-CREATE TABLE dept_emp(
-emp_no INT NOT NULL,
-	dept_no VARCHAR NOT NULL,
-    from_date DATE NOT NULL,
-    to_date DATE NOT NULL,
-    FOREIGN KEY (emp_no) REFERENCES employees (emp_no),
-    FOREIGN KEY (dept_no) REFERENCES departments (dept_no),
-    PRIMARY KEY (emp_no, dept_no)
-);
+-- Narrow the Search for Retirement Eligibility
+select first_name, last_name
+from employees
+where (birth_date between '1952-01-01' and '1955-12-31') 
+and (hire_date between '1985-01-01' and '1988-12-31');
 
-SELECT * FROM departments;
-SELECT * FROM employees;
-SELECT * FROM dept_manager;
-SELECT * FROM salaries;
-SELECT * FROM titles;
+-- Determine the number of employees retiring
+select count(first_name)
+from employees
+where (birth_date between '1952-01-01' and '1955-12-31')
+and (hire_date between '1985-01-01' and '1988-12-31');
 
-DROP TABLE dept_emp CASCADE;
+-- Save data into a new table "retirement info"
+-- select first_name, last_name
+-- into retirement_info
+-- from employees
+-- where (birth_date between '1952-01-01' and '1955-12-31')
+-- and (hire_date between '1985-01-01' and '1988-12-31');
+-- Check the table
+-- select * from retirement_info;
 
-SELECT * FROM dept_emp;
+-- Create a new table for retiring employees
+select emp_no, first_name, last_name
+into retirement_info
+from employees
+where (birth_date between '1952-01-01' and '1955-12-31')
+and (hire_date between '1985-01-01' and '1988-12-31');
+-- Check the table
+select * from retirement_info;
+
+-- Join the "retirement_info" and "dept_emp" tables
+select retirement_info.emp_no,
+	retirement_info.first_name,
+	retirement_info.last_name,
+	dept_emp.to_date
+from retirement_info
+left join dept_emp
+on retirement_info.emp_no = dept_emp.emp_no;
+
+-- Use aliases in the code above^ to make code cleaner
+select ri.emp_no,
+	ri.first_name,
+	ri.last_name,
+	de.to_date
+from retirement_info as ri --this is where the alias 'ri' gets defined
+left join dept_emp as de --this is where the alias 'de' gets defined
+on ri.emp_no = de.emp_no;
+-- NOTE: these aliases only exist within this query; they aren't committed to that database
+
+-- Join the "departments" and "managers" tables
+select dpt.dept_name,
+	mgr.emp_no,
+	mgr.from_date,
+	mgr.to_date
+from departments as dpt
+inner join managers as mgr
+on dpt.dept_no = mgr.dept_no;
+
+-- Join the "retirement_info" and "dept_emp" tables to make sure they're still employed
+select ri.emp_no,
+	ri.first_name,
+	ri.last_name,
+	de.to_date
+into current_emp
+from retirement_info as ri
+left join dept_emp as de
+on ri.emp_no = de.emp_no
+where de.to_date = ('9999-01-01');
+-- Check the table
+select * from current_emp;
+
+-- Determine the employee count by department number
+select count(ce.emp_no), de.dept_no
+into emp_count_by_dept_no
+from current_emp as ce
+left join dept_emp as de
+on ce.emp_no = de.emp_no
+group by de.dept_no
+order by de.dept_no;
+
+-- Create the 1st List: Employee Information
+-- Here, we are using a modified version of the "retirement_info" table to include salaries 
+-- and renaming the table to "emp_info"
+select e.emp_no, 
+	e.first_name, 
+	e.last_name,
+	e.gender,
+	s.salary,
+	de.to_date
+into emp_info
+from employees as e
+	inner join salaries as s
+		on (e.emp_no = s.emp_no)
+	inner join dept_emp as de
+		on (e.emp_no = de.emp_no)
+where (e.birth_date between '1952-01-01' and '1955-12-31')
+	and (e.hire_date between '1985-01-01' and '1988-12-31')
+	and (de.to_date = '9999-01-01');
+
+-- Create the 2nd List: Management
+select mgr.dept_no,
+	dpt.dept_name,
+	mgr.emp_no,
+	ce.last_name,
+	ce.first_name,
+	mgr.from_date,
+	mgr.to_date
+into manager_info
+from managers as mgr
+	inner join departments as dpt
+		on (mgr.dept_no = dpt.dept_no)
+	inner join current_emp as ce
+		on (mgr.emp_no = ce.emp_no);
+		
+-- Create the 3rd List: Department Retirees
+select ce.emp_no,
+	ce.first_name,
+	ce.last_name,
+	dpt.dept_name
+into dept_info
+from current_emp as ce
+	inner join dept_emp as de
+		on (ce.emp_no = de.emp_no)
+	inner join departments as dpt
+		on (de.dept_no = dpt.dept_no);
